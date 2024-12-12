@@ -12,6 +12,7 @@ require (
 require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/oolong-sh/sync v0.0.0-20241128232107-4aff73e779a0
+	go.etcd.io/bbolt v1.3.11
 )
 
 require (

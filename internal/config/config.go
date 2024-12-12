@@ -17,6 +17,7 @@ type OolongConfig struct {
 	AllowedExtensions []string `toml:"allowed_extensions"`
 	IgnoreDirectories []string `toml:"ignored_directories"`
 	OpenCommand       []string `toml:"open_command"`
+	PinningEnabled    bool     `toml:"pinning_enabled"`
 
 	LinkerConfig  OolongLinkerConfig `toml:"linker"`
 	GraphConfig   OolongGraphConfig  `toml:"graph"`
@@ -25,7 +26,6 @@ type OolongConfig struct {
 }
 
 type OolongLinkerConfig struct {
-	// TODO: move these things to a "linker" config section
 	NGramRange []int    `toml:"ngram_range"`
 	StopWords  []string `toml:"stop_words"`
 }
@@ -58,6 +58,7 @@ func StopWords() []string                 { return cfg.LinkerConfig.StopWords }
 func WeightThresholds() OolongGraphConfig { return cfg.GraphConfig }
 func GraphMode() string                   { return cfg.GraphConfig.DefaultMode }
 func SyncConfig() OolongSyncConfig        { return cfg.SyncConfig }
+func PinningEnabled() bool                { return cfg.PinningEnabled }
 
 func Setup() error {
 	configPath, err := findConfigPath()

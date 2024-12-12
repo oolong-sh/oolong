@@ -11,7 +11,9 @@ import (
 	"path/filepath"
 
 	"github.com/oolong-sh/oolong/internal/config"
+	"github.com/oolong-sh/oolong/internal/db"
 	"github.com/oolong-sh/oolong/internal/state"
+	"go.etcd.io/bbolt"
 )
 
 type createUpdateRequest struct {
@@ -145,7 +147,7 @@ func handleUpdateNote(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// 'Delete /note?path=/path/to/note' endpoint handler deletess a note file based on query input
+// 'Delete /note?path=/path/to/note' endpoint handler deletes a note file based on query input
 func handleDeleteNote(w http.ResponseWriter, r *http.Request) {
 	log.Println("Request received:", r.Method, r.URL, r.Host)
 
@@ -171,6 +173,124 @@ func handleDeleteNote(w http.ResponseWriter, r *http.Request) {
 
 	// NOTE: this function may need to call the update function due to files no longer existing
 	// - check this case in state, this may require substantial logic missing there
+}
+
+func addPinnedNote(path string) error {
+	return db.Database.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(db.PinnedBucket))
+		if bucket == nil {
+			return fmt.Errorf("bucket %s not found", db.PinnedBucket)
+		}
+
+		if bucket.Get([]byte(path)) != nil {
+			return fmt.Errorf("note already pinned")
+		}
+
+		return bucket.Put([]byte(path), []byte{})
+	})
+}
+
+func getPinnedNotes() ([]string, error) {
+	notes := []string{}
+
+	err := db.Database.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(db.PinnedBucket))
+		if bucket == nil {
+			return fmt.Errorf("bucket %s not found", db.PinnedBucket)
+		}
+
+		return bucket.ForEach(func(k, _ []byte) error {
+			notes = append(notes, string(k))
+			return nil
+		})
+	})
+
+	return notes, err
+}
+
+func deletePinnedNote(path string) error {
+	return db.Database.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(db.PinnedBucket))
+		if bucket == nil {
+			return fmt.Errorf("bucket %s not found", db.PinnedBucket)
+		}
+
+		return bucket.Delete([]byte(path))
+	})
+}
+
+func handleGetPinnedNotes(w http.ResponseWriter, r *http.Request) {
+	log.Println("Request received:", r.Method, r.URL, r.Host)
+
+	// CORS handling
+	if err := checkOrigin(w, r); err != nil {
+		log.Println(err)
+		http.Error(w, fmt.Sprintln(err), 500)
+		return
+	}
+
+	pinnedNotes, err := getPinnedNotes()
+	if err != nil {
+		log.Println(err)
+		http.Error(w, "Failed to fetch pinned notes", 500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(pinnedNotes); err != nil {
+		log.Println(err)
+		http.Error(w, "Failed to encode response", 500)
+	}
+}
+
+func handleAddPinnedNote(w http.ResponseWriter, r *http.Request) {
+	log.Println("Request received:", r.Method, r.URL, r.Host)
+
+	// CORS handling
+	if err := checkOrigin(w, r); err != nil {
+		log.Println(err)
+		http.Error(w, fmt.Sprintln(err), 500)
+		return
+	}
+
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		http.Error(w, "Path parameter not specified", http.StatusBadRequest)
+		return
+	}
+
+	if err := addPinnedNote(path); err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), 400)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+}
+
+func handleDeletePinnedNote(w http.ResponseWriter, r *http.Request) {
+	log.Println("Request received:", r.Method, r.URL, r.Host)
+
+	// CORS handling
+	if err := checkOrigin(w, r); err != nil {
+		log.Println(err)
+		http.Error(w, fmt.Sprintln(err), 500)
+		return
+	}
+
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		http.Error(w, "Path parameter not specified", http.StatusBadRequest)
+		return
+	}
+
+	if err := deletePinnedNote(path); err != nil {
+		log.Println(err)
+		http.Error(w, "Failed to delete pinned note", 400)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // 'GET /open/note?path=/path/to/note.md' opens the specified not file using the command specified in oolong.toml

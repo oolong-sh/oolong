@@ -3,6 +3,8 @@ package api
 import (
 	"log"
 	"net/http"
+
+	"github.com/oolong-sh/oolong/internal/config"
 )
 
 // spawn the oolong api server
@@ -28,6 +30,13 @@ func SpawnServer() {
 	mux.HandleFunc("PUT /note", handleUpdateNote)
 	mux.HandleFunc("DELETE /note", handleDeleteNote)
 	mux.HandleFunc("GET /open/note", handleOpenNote)
+
+	if config.PinningEnabled() {
+		// pinning endpoints
+		mux.HandleFunc("GET /pins", handleGetPinnedNotes)
+		mux.HandleFunc("POST /pins", handleAddPinnedNote)
+		mux.HandleFunc("DELETE /pins", handleDeletePinnedNote)
+	}
 
 	// start server
 	log.Println("Starting server on :11975...")
